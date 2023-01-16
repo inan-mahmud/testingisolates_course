@@ -30,11 +30,11 @@ class MyApp extends StatelessWidget {
   }
 }
 
-Future<Iterable<Todo>> getTodos() async {
-  final rp = ReceivePort();
-  await Isolate.spawn(_getTodos, rp.sendPort);
-  return await rp.first;
-}
+// Future<Iterable<Todo>> getTodos() async {
+//   final rp = ReceivePort();
+//   await Isolate.spawn(_getTodos, rp.sendPort);
+//   return await rp.first;
+// }
 
 void _getTodos(SendPort sp) async {
   const url = 'https://jsonplaceholder.typicode.com/todos';
@@ -44,6 +44,33 @@ void _getTodos(SendPort sp) async {
       .then((json) => json.map((map) => Todo.fromJson(map)));
 
   Isolate.exit(sp, todos);
+}
+
+// ReceivePort is a stream of results that come from main function i.e. _getMessages(SendPort sp)
+// asyncExpand changing data type of the stream i.e. from stream of isolates to ReceivePort
+Stream<String> getMessages() {
+  final rp = ReceivePort();
+  return Isolate.spawn(_getMessages, rp.sendPort)
+      .asStream()
+      .asyncExpand((_) => rp)
+      .takeWhile((element) => element is String)
+      .cast();
+}
+
+void _getMessages(SendPort sp) async {
+  await for (final now in Stream.periodic(
+    const Duration(seconds: 1),
+    (_) => DateTime.now().toIso8601String(),
+  ).take(10)) {
+    sp.send(now);
+  }
+  Isolate.exit(sp);
+}
+
+void testIt() async {
+  await for (final msg in getMessages()) {
+    msg.log();
+  }
 }
 
 class HomePage extends StatelessWidget {
@@ -56,9 +83,10 @@ class HomePage extends StatelessWidget {
           title: const Text('Home Page'),
         ),
         body: TextButton(
-          onPressed: () async {
-            final todos = await getTodos();
-            todos.log();
+          onPressed: () {
+            // final todos = getMessages();
+            // todos.log();
+            testIt();
           },
           child: const Text("Click Me"),
         ));
